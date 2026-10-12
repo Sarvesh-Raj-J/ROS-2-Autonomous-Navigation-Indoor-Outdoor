@@ -1,0 +1,18 @@
+Changes for rtabmap_slam (2026-02-05):
+- Made every slam launch file resilient to missing environment variables by defaulting need_compile/MASTER/HOST and falling back to source paths when the installed share directory is unavailable; this prevents KeyError crashes when launching rtabmap_slam.
+- Added resolve_package_path helpers inside the launch files so they prefer installed resources but gracefully use the source tree if the package has not been installed.
+- Simplified the RViz launchers by dropping unused launch actions and using the same robust package resolution to avoid start-up failures.
+- Declared the runtime dependencies in package.xml (launch, launch_ros, nav2_common, nav2_map_server, rclpy, rtabmap_slam, rtabmap_sync, slam_toolbox, std_srvs) so rosdep/colcon pulls in the nodes needed by rtabmap_slam instead of failing at launch time.
+- Rebuilt the slam package with colcon; latest logs under ros2_ws/log/latest_build/slam show a clean install with no build errors.
+- Exposed sim/master_name/robot_name as explicit launch arguments at the top level of rtabmap_slam.launch.py so `ros2 launch ... --show-args` now lists them.
+- Added a static transform publisher for depth_cam_link -> depth_cam_color_optical_frame and tightened queue sizes/wait_for_transform in launch/include/rtabmap.launch.py to resolve missing TF for RGBD data and reduce sync stalls; declared tf2_ros as a dependency and fixed launch indentation.
+- Tuned rtabmap defaults to reduce bad loop closures: set RGBD/OptimizeMaxError=1.5, RGBD/LoopThr=0.12, RGBD/ProximityPathMaxNeighbors=5, and Vis/MinInliers=25 in launch/include/rtabmap.launch.py (all as string params so rtabmap accepts them).
+
+Changes for navigation RTAB-Map reuse (2026-02-06):
+- navigation/launch/include/rtabmap.launch.py now declares arguments for frame/topics/TF wait/queues and database_path (default /home/ubuntu/output.db) and wires them into remappings/parameters so existing maps can be used for localization without a new launch file.
+- navigation/launch/rtabmap_navigation.launch.py accepts a database_path argument, forwards frame/topic/QoS/timing settings to the include launch, and keeps defaults aligned with the existing depth_cam/odom/scan topics.
+
+Usability defaults for rtabmap_navigation.launch.py (2026-02-06):
+- Default need_compile to False when unset, and fall back to source paths automatically.
+- Default robot_name to '/' (no namespace) when HOST is missing; master_name now falls back to the hostname when MASTER is missing.
+- Default map to map_01 and database_path to /home/ubuntu/output.db so the launch can run without extra arguments.

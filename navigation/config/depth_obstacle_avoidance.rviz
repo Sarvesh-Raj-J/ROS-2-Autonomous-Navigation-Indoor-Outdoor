@@ -1,0 +1,46 @@
+# RViz config for depth camera obstacle avoidance
+# Add Image and PointCloud2 displays for depth camera topics
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Name: "Map"
+      Class: "rviz/Map"
+      Enabled: true
+      Topic: "/map"
+    - Name: "RobotModel"
+      Class: "rviz/RobotModel"
+      Enabled: true
+    - Name: "Depth Image"
+      Class: "rviz/Image"
+      Enabled: true
+      Topic: "/camera/depth/image_raw"
+      Queue Size: 2
+      Transport Hint: "raw"
+    - Name: "Depth PointCloud"
+      Class: "rviz/PointCloud2"
+      Enabled: true
+      Topic: "/camera/depth/points"
+      Queue Size: 2
+      Style: "Points"
+      Size (Pixels): 3
+      Color Transformer: "Intensity"
+      Autocompute Intensity Bounds: true
+    - Name: "TF"
+      Class: "rviz/TF"
+      Enabled: true
+  Global Options:
+    Fixed Frame: "map"
+  Tools:
+    - Class: "rviz/Interact"
+    - Class: "rviz/MoveCamera"
+    - Class: "rviz/Select"
+    - Class: "rviz/FocusCamera"
+    - Class: "rviz/Measure"
+    - Class: "rviz/SetInitialPose"
+    - Class: "rviz/SetGoal"
+  Window Geometry:
+    Height: 800
+    Width: 1200
+    X: 100
+    Y: 100

@@ -1,0 +1,276 @@
+# Nav2 depth obstacle avoidance parameters
+# AMCL localizes from /scan generated out of the depth camera.
+# The depth camera point cloud is also used directly by the local and global costmaps
+# so dynamic obstacles can trigger real rerouting instead of only local stopping.
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    default_nav_to_pose_bt_xml: /home/ubuntu/ros2_ws/src/navigation/behavior_trees/navigate_no_spin.xml
+
+amcl:
+  ros__parameters:
+    use_sim_time: False
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.3
+    base_frame_id: "base_footprint"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_beams: 60
+    laser_min_range: -1.0
+    laser_model_type: "likelihood_field"
+    laser_sigma_hit: 0.2
+    laser_z_hit: 0.5
+    laser_z_max: 0.05
+    laser_z_rand: 0.5
+    laser_z_short: 0.05
+    max_beams: 60
+    max_particles: 2000
+    min_particles: 500
+    odom_alpha1: 0.2
+    odom_alpha2: 0.2
+    odom_alpha3: 0.2
+    odom_alpha4: 0.2
+    odom_alpha5: 0.3
+    odom_frame_id: "odom"
+    odom_model_type: "diff-corrected"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_rate: 0.5
+    scan_topic: /scan
+    sigma_hit: 0.2
+    set_initial_pose: True
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      yaw: 0.0
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.25
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+
+controller_server:
+  ros__parameters:
+    use_sim_time: False
+    controller_frequency: 10.0
+    transform_tolerance: 1.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.01
+    controller_plugins: ["FollowPath"]
+    progress_checker_plugin: progress_checker
+    goal_checker_plugins: ["goal_checker"]
+    progress_checker:
+      plugin: nav2_controller::SimpleProgressChecker
+      required_movement_radius: 0.05
+      movement_time_allowance: 5.0
+    goal_checker:
+      plugin: nav2_controller::SimpleGoalChecker
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.5
+      stateful: True
+    FollowPath:
+      plugin: dwb_core::DWBLocalPlanner
+      min_vel_x: -0.18
+      max_vel_x: 0.18
+      min_vel_y: 0.0
+      max_vel_y: 0.0
+      max_vel_theta: 0.45
+      min_speed_xy: 0.0
+      max_speed_xy: 0.18
+      min_speed_theta: 0.0
+      acc_lim_x: 1.0
+      acc_lim_y: 0.0
+      acc_lim_theta: 1.5
+      decel_lim_x: -1.0
+      decel_lim_y: 0.0
+      decel_lim_theta: -1.5
+      vx_samples: 20
+      vy_samples: 1
+      vtheta_samples: 40
+      sim_time: 1.5
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      short_circuit_trajectory_evaluation: true
+      stateful: true
+      critics:
+        - Oscillation
+        - BaseObstacle
+        - GoalAlign
+        - PathAlign
+        - PathDist
+        - GoalDist
+      BaseObstacle.scale: 0.08
+      PathAlign.scale: 20.0
+      PathAlign.forward_point_distance: 0.2
+      GoalAlign.scale: 16.0
+      GoalAlign.forward_point_distance: 0.2
+      PathDist.scale: 24.0
+      GoalDist.scale: 16.0
+      Oscillation.scale: 5.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 5.0
+      global_frame: odom
+      robot_base_frame: base_footprint
+      use_sim_time: False
+      rolling_window: true
+      width: 3
+      height: 3
+      resolution: 0.05
+      transform_tolerance: 1.0 
+      footprint: "[[-0.18,-0.15],[-0.18,0.15],[0.18,0.15],[0.18,-0.15]]"
+      footprint_padding: 0.01
+      plugins: ["voxel_layer", "inflation_layer"]
+      voxel_layer:
+        plugin: nav2_costmap_2d::VoxelLayer
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: depth_camera
+        # Depth camera point cloud — marks and clears obstacles in 3D voxel grid
+        depth_camera:
+          topic: /depth_cam/depth/points
+          data_type: PointCloud2
+          clearing: True
+          marking: True
+          raytrace_max_range: 2.5
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.0
+          obstacle_min_range: 0.0
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.05
+          max_obstacle_height: 2.0
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        enabled: True
+        inflation_radius: 0.18
+        cost_scaling_factor: 5.0
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      use_sim_time: False
+      width: 30
+      height: 30
+      resolution: 0.05
+      transform_tolerance: 1.0
+      track_unknown_space: false
+      footprint: "[[-0.18,-0.15],[-0.18,0.15],[0.18,0.15],[0.18,-0.15]]"
+      footprint_padding: 0.01
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: nav2_costmap_2d::StaticLayer
+        enabled: True
+        map_subscribe_transient_local: True
+      obstacle_layer:
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: True
+        observation_sources: depth_camera
+        depth_camera:
+          topic: /depth_cam/depth/points
+          data_type: PointCloud2
+          clearing: True
+          marking: True
+          raytrace_max_range: 2.5
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.0
+          obstacle_min_range: 0.0
+          min_obstacle_height: 0.05
+          max_obstacle_height: 2.0
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        enabled: True
+        inflation_radius: 0.22
+        cost_scaling_factor: 5.0
+      always_send_full_costmap: True
+
+planner_server:
+  ros__parameters:
+    use_sim_time: False
+    expected_planner_frequency: 5.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: nav2_navfn_planner/NavfnPlanner
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: true
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: False
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: nav2_smoother::SimpleSmoother
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: True
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: odom
+    robot_base_frame: base_footprint
+    behavior_plugins:
+      - spin
+      - backup
+      - wait
+    spin:
+      plugin: nav2_behaviors/Spin
+    backup:
+      plugin: nav2_behaviors/BackUp
+    wait:
+      plugin: nav2_behaviors/Wait
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: False
+    loop_rate: 10
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: False
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+    max_velocity: [0.18, 0.0, 0.45]
+    min_velocity: [-0.18, 0.0, -0.45]
+    max_accel: [1.0, 0.0, 1.5]
+    max_decel: [-1.0, 0.0, -1.5]
+    odom_topic: /odom
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0

@@ -1,0 +1,323 @@
+# Nav2 parameters for outdoor GPS waypoint navigation.
+# Sensors used here: wheel odometry, IMUs, GPS, and the depth camera point cloud.
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odometry/filtered
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    # Use the package's replanning tree so outdoor GPS navigation can clear
+    # costmaps, back up slightly, and recompute a path when obstacles appear.
+    default_nav_to_pose_bt_xml: /home/ubuntu/ros2_ws/src/navigation/behavior_trees/navigate_no_spin.xml
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_compute_path_through_poses_action_bt_node
+      - nav2_smooth_path_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_drive_on_heading_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+      - nav2_goal_updated_condition_bt_node
+      - nav2_globally_updated_goal_condition_bt_node
+      - nav2_is_path_valid_condition_bt_node
+      - nav2_initial_pose_received_condition_bt_node
+      - nav2_reinitialize_global_localization_service_bt_node
+      - nav2_rate_controller_bt_node
+      - nav2_distance_controller_bt_node
+      - nav2_speed_controller_bt_node
+      - nav2_truncate_path_action_bt_node
+      - nav2_truncate_path_local_action_bt_node
+      - nav2_goal_updater_node_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - nav2_time_expired_condition_bt_node
+      - nav2_distance_traveled_condition_bt_node
+      - nav2_single_trigger_bt_node
+      - nav2_navigate_through_poses_action_bt_node
+      - nav2_navigate_to_pose_action_bt_node
+      - nav2_remove_passed_goals_action_bt_node
+      - nav2_planner_selector_bt_node
+      - nav2_controller_selector_bt_node
+      - nav2_goal_checker_selector_bt_node
+      - nav2_controller_cancel_bt_node
+      - nav2_wait_cancel_bt_node
+      - nav2_spin_cancel_bt_node
+      - nav2_back_up_cancel_bt_node
+
+controller_server:
+  ros__parameters:
+    use_sim_time: False
+    controller_frequency: 10.0
+    odom_topic: /odometry/filtered
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.01
+    failure_tolerance: 0.3
+    progress_checker_plugin: progress_checker
+    goal_checker_plugins: ["goal_checker"]
+    controller_plugins: ["FollowPath"]
+    progress_checker:
+      plugin: nav2_controller::SimpleProgressChecker
+      required_movement_radius: 0.05
+      # Outdoor GPS runs can require a longer initial heading alignment before
+      # translational motion starts. Avoid aborting while the robot is still
+      # legitimately turning onto the path.
+      movement_time_allowance: 90.0
+    goal_checker:
+      plugin: nav2_controller::SimpleGoalChecker
+      xy_goal_tolerance: 1.0
+      # Outdoor non-RTK navigation can reach the correct position while the
+      # global heading estimate is still off by a few tens of degrees. A more
+      # forgiving yaw tolerance prevents endless circling at the waypoint.
+      yaw_goal_tolerance: 1.0
+      stateful: True
+    FollowPath:
+      plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+      desired_linear_vel: 0.18
+      lookahead_dist: 1.0
+      min_lookahead_dist: 0.5
+      max_lookahead_dist: 2.0
+      lookahead_time: 1.5
+      rotate_to_heading_angular_vel: 0.4
+      transform_tolerance: 0.5
+      use_velocity_scaled_lookahead_dist: true
+      min_approach_linear_velocity: 0.05
+      approach_velocity_scaling_dist: 1.0
+      use_collision_detection: true
+      max_allowed_time_to_collision_up_to_carrot: 1.0
+      use_regulated_linear_velocity_scaling: true
+      use_fixed_curvature_lookahead: false
+      curvature_lookahead_dist: 1.0
+      use_cost_regulated_linear_velocity_scaling: false
+      regulated_linear_scaling_min_radius: 0.9
+      regulated_linear_scaling_min_speed: 0.25
+      # Prefer beginning the path with forward motion instead of spending a
+      # long time rotating in place, which can trigger the progress checker.
+      use_rotate_to_heading: false
+      allow_reversing: false
+      rotate_to_heading_min_angle: 1.2
+      max_angular_accel: 1.5
+      max_robot_pose_search_dist: 10.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: False
+      update_frequency: 10.0
+      publish_frequency: 5.0
+      global_frame: odom
+      robot_base_frame: base_footprint
+      rolling_window: true
+      width: 6
+      height: 6
+      resolution: 0.05
+      transform_tolerance: 0.5
+      footprint: "[[-0.18,-0.15],[-0.18,0.15],[0.18,0.15],[0.18,-0.15]]"
+      footprint_padding: 0.02
+      plugins: ["voxel_layer", "inflation_layer"]
+      voxel_layer:
+        plugin: nav2_costmap_2d::VoxelLayer
+        enabled: True
+        publish_voxel_map: False
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        # Use LiDAR by default outdoors. Depth point clouds are often noisy in
+        # sunlight and can cause the controller to rotate in place without
+        # ever committing to forward motion.
+        observation_sources: lidar
+        depth_camera:
+          topic: /depth_cam/depth/points
+          data_type: PointCloud2
+          clearing: True
+          marking: True
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.1
+          obstacle_max_range: 3.5
+          raytrace_max_range: 4.0
+          observation_persistence: 0.0
+          expected_update_rate: 0.0
+        lidar:
+          topic: /scan
+          data_type: LaserScan
+          clearing: True
+          marking: True
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.1
+          obstacle_max_range: 5.0
+          raytrace_max_range: 6.0
+          observation_persistence: 0.0
+          expected_update_rate: 0.0
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        enabled: True
+        inflation_radius: 0.5
+        cost_scaling_factor: 3.0
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: False
+      update_frequency: 3.0
+      publish_frequency: 2.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      rolling_window: true
+      # GPS waypoints are often tens of meters away. Because this outdoor
+      # planner uses a rolling window with no static map, the goal must stay
+      # inside the global costmap bounds to avoid "Goal pose is out of costmap!"
+      # failures.
+      width: 200
+      height: 200
+      resolution: 0.1
+      transform_tolerance: 0.5
+      track_unknown_space: false
+      footprint: "[[-0.18,-0.15],[-0.18,0.15],[0.18,0.15],[0.18,-0.15]]"
+      footprint_padding: 0.05
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: True
+        observation_sources: lidar
+        lidar:
+          topic: /scan
+          data_type: LaserScan
+          clearing: True
+          marking: True
+          min_obstacle_height: 0.05
+          max_obstacle_height: 2.0
+          obstacle_min_range: 0.0
+          obstacle_max_range: 8.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 10.0
+          inf_is_valid: true
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        enabled: True
+        inflation_radius: 1.0
+        cost_scaling_factor: 2.0
+      always_send_full_costmap: True
+
+planner_server:
+  ros__parameters:
+    use_sim_time: False
+    expected_planner_frequency: 2.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: nav2_smac_planner/SmacPlannerHybrid
+      downsample_costmap: false
+      downsampling_factor: 1
+      tolerance: 1.0
+      allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 5.0
+      # Match the forward-only local controller to avoid plans that expect
+      # reverse maneuvers the controller is not allowed to execute.
+      motion_model_for_search: DUBIN
+      angle_quantization_bins: 72
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 3.0
+      minimum_turning_radius: 0.4
+      reverse_penalty: 2.0
+      change_penalty: 0.0
+      non_straight_penalty: 1.2
+      cost_penalty: 2.0
+      retrospective_penalty: 0.015
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: true
+      debug_visualizations: false
+      smooth_path: true
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.3
+        w_data: 0.2
+        tolerance: 1.0e-10
+        do_refinement: true
+        refinement_num: 2
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: False
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: nav2_smoother::SimpleSmoother
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: True
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: odom
+    robot_base_frame: base_footprint
+    transform_tolerance: 0.5
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 0.45
+    min_rotational_vel: 0.1
+    rotational_acc_lim: 1.5
+    behavior_plugins:
+      - spin
+      - backup
+      - drive_on_heading
+      - wait
+    spin:
+      plugin: nav2_behaviors/Spin
+    backup:
+      plugin: nav2_behaviors/BackUp
+    drive_on_heading:
+      plugin: nav2_behaviors/DriveOnHeading
+    wait:
+      plugin: nav2_behaviors/Wait
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: False
+    loop_rate: 10
+    stop_on_failure: false
+    waypoint_task_executor_plugin: wait_at_waypoint
+    wait_at_waypoint:
+      plugin: nav2_waypoint_follower::WaitAtWaypoint
+      enabled: True
+      waypoint_pause_duration: 0
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: False
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+    max_velocity: [0.18, 0.0, 0.45]
+    min_velocity: [-0.18, 0.0, -0.45]
+    max_accel: [1.0, 0.0, 1.5]
+    max_decel: [-1.0, 0.0, -1.5]
+    odom_topic: /odometry/filtered
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+lifecycle_manager_navigation:
+  ros__parameters:
+    use_sim_time: False
+    autostart: True
+    bond_timeout: 30.0
+    node_names:
+      - controller_server
+      - planner_server
+      - smoother_server
+      - behavior_server
+      - bt_navigator
+      - waypoint_follower
+      - velocity_smoother

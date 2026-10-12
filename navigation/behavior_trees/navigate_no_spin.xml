@@ -1,0 +1,48 @@
+<!--
+  navigate_no_spin.xml
+  Based on navigate_to_pose_w_replanning_and_recovery.xml (Nav2 Humble).
+
+  Changes from default:
+    - Spin recovery REMOVED — robot never rotates in place as a recovery action.
+    - Recovery order: ClearCostmaps → BackUp → Wait → Abort.
+    - BackUp distance reduced to 0.20 m so the robot only needs to move slightly
+      away from an obstacle before replanning.
+
+  Flow:
+    1. Replan global path at 1 Hz.
+    2. On controller failure → clear local costmap → retry once.
+    3. On planner failure   → clear global costmap → retry once.
+    4. If still failing (6 retries):
+         a. Clear both costmaps
+         b. Back up 0.20 m
+         c. Wait 3 s
+         d. Abort goal
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <RateController hz="2.0">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <Sequence name="ClearingActions">
+            <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </Sequence>
+          <BackUp backup_dist="0.20" backup_speed="0.05"/>
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>
